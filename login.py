@@ -4,6 +4,7 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
+from selenium.webdriver.common.action_chains import ActionChains
 import time
 import pickle
 import os
@@ -21,7 +22,9 @@ class MessengerBotLogin:
         options = webdriver.ChromeOptions()
         options.add_argument("--start-maximized")
         options.add_experimental_option("detach", False)
-        return webdriver.Chrome(options=options)
+        driver = webdriver.Chrome(options=options)
+        driver.implicitly_wait(2)  # Set implicit wait on the driver instance
+        return driver
 
     def load_cookies(self):
         try:
@@ -57,7 +60,7 @@ class MessengerBotLogin:
 
     def run(self):
         try:
-            self.driver.get("https://www.facebook.com/messages/t/29059462703645005")
+            self.driver.get("https://www.facebook.com/messages/t/24641822542100020")
             time.sleep(5)
 
             self.load_cookies()
@@ -84,7 +87,17 @@ class MessengerBotLogin:
             return False
     # ... existing code ...
 
-    def get_messages(self, num_messages=10):
+    def highlight(self, element, duration=1, color="red", border="2px"):
+        """Highlights (blinks) a Selenium WebDriver element"""
+        driver = self.driver  # Use the class's driver instance
+        original_style = element.get_attribute('style')
+        new_style = f"border: {border} solid {color}; {original_style}"
+        driver.execute_script(f"arguments[0].setAttribute('style', '{new_style}')", element)
+        time.sleep(duration)
+        driver.execute_script(f"arguments[0].setAttribute('style', '{original_style}')", element)
+
+
+    def get_messages(self, messages_data):
         """
         Retrieves messages from the current Messenger conversation
         
@@ -94,76 +107,118 @@ class MessengerBotLogin:
         Returns:
             list: List of dictionaries containing message data
         """
-        messages = []
 
         message_container_xpath = os.getenv("MESSAGE_CONTAINER_XPATH")
         print(message_container_xpath)
-        try:
-            # Wait for messages to load
-            message_elements = WebDriverWait(self.driver, 10).until(
-                EC.presence_of_all_elements_located((By.XPATH, message_container_xpath))
-            ) 
-            # message_elements = self.driver.find_elements(By.XPATH, os.getenv("MESSAGE_CONTAINER_XPATH"))
-            print(len(message_elements))
-            print(message_elements)
-        
-            # Process the most recent messages (up to num_messages)
-            for idx, element in enumerate(message_elements):
-                try:
-                    try:
-                        # Get message text - updated selector for Facebook Messenger
-                        message_text = self.driver.find_element(By.XPATH, f'({os.getenv("MESSAGE_CONTAINER_XPATH")})[{idx + 1}]{os.getenv("MESSAGE_XPATH")}').text
-                    except:
-                        try:
-                            message_text = self.driver.find_element(By.XPATH, f'({os.getenv("MESSAGE_CONTAINER_XPATH")})[{idx + 1}]{os.getenv("MESSAGE_XPATH2")}').text
-                        except: 
-                            message_text = "Unknown"
-                            continue
-                    
-                    # Get sender name (if available)
-                    try:
-                        sender = self.driver.find_element(By.XPATH, f'({os.getenv("MESSAGE_CONTAINER_XPATH")})[{idx + 1}]{os.getenv("SENDER_XPATH")}').text
-                    
-                    except Exception as e:
-                        try:
-                            sender = self.driver.find_element(By.XPATH, f'({os.getenv("MESSAGE_CONTAINER_XPATH")})[{idx + 1}]{os.getenv("SENDER_XPATH2")}').text
-                        except Exception as e2:
-                            print(f"Error getting sender: {e}")
-                            print(f"Error getting sender2: {e2}")
-                            sender = "Unknown"
-                    
-                    # Get timestamp (if available)
-                    try:
-                        timestamp = self.driver.find_element(By.XPATH, f'({os.getenv("MESSAGE_CONTAINER_XPATH")})[{idx + 1}]{os.getenv("MESSAGE_TIME")}').text
-                    except Exception as e:
-                        print(f"Error getting timestamp: {e}")
-                        timestamp = "Unknown"
-                    
-                    messages.append({
-                        'sender': sender,
-                        'text': message_text,
-                        'timestamp': timestamp
-                    })
-                    
-                except Exception as e:
-                    print(f"Error processing message {idx}: {str(e)}")
-                    continue
-                    
-            print(f"Successfully retrieved {len(messages)} messages")
-            return messages
+        seen_messages = set()
+        for attempt in range(10):
             
-        except TimeoutException:
-            print("Failed to load messages - timeout")
-            return messages
-        except Exception as e:
-            print(f"An error occurred while getting messages: {str(e)}")
-            return messages
+            print("Attempt:", attempt)
+            if "message_elements" in locals() and len(message_elements) > 0:
+                # input("message_elements")
+                self.driver.execute_script("arguments[0].scrollIntoView(true);", message_elements[0])
+            try:
+                # Wait for messages to load
+                message_elements = self.driver.find_elements(By.XPATH, os.getenv("MESSAGE_CONTAINER_XPATH"))
+                print(f"Found {len(message_elements)} message elements")
+                
+                # Create a set to track unique messages
+                
+                
+                # Process the most recent messages
+                self.driver.implicitly_wait(0)
+                for element in reversed(message_elements):
+                    
+                    print("element:", message_elements.index(element))
+                    try:
+                        # Get message text
+                        try:
+                            message_text_element = element.find_element(By.XPATH, os.getenv("MESSAGE_XPATH"))
+                            
+                            message_text = message_text_element.text
+                            try:
+                                self.highlight(message_text_element)  # Ensure 'highlight' is called as a method of the class
+                            except Exception as e:
+                                print(f"Error highlighting message text element: {e}")
+                                pass
+                            # Click on the message text element to navigate with the mouse cursor
+                            # self.driver.execute_script("arguments[0].click();", message_text_element)
+                            # input("message_text_element:", message_text)
+                        except:
+                            try:
+                                message_text = element.find_element(By.XPATH, os.getenv("MESSAGE_XPATH2"))
+                                self.highlight(message_text)
+                                message_text = message_text.text
+                            except: 
+                                message_text = "Not found"
+                                # continue
+                        finally:
+                            print("message_text:", message_text)
+                        
+                        # Skip if we've seen this message before
+                        
+                        
+                        # Get sender name
+                        try:
+                            sender = element.find_element(By.XPATH, os.getenv("SENDER_XPATH"))
+                            self.highlight(sender)
+                            sender = sender.text
+                        except Exception as e:
+                            print("User Exceptions SENDER_XPATH:")
+                            try:
+                                sender = element.find_element(By.XPATH, os.getenv("SENDER_XPATH2"))
+                                self.highlight(sender)
+                                sender = sender.text
+                            except Exception as e2:
+                                print("User Exceptions SENDER_XPATH2:")
+                                sender = "Unknown"
+                        finally:
+                            print("sender:", sender)
+                        
+                        # Get timestamp
+                        try:
+                            ActionChains(self.driver).move_to_element(message_text_element).perform()
+                            tooltip_text = WebDriverWait(self.driver, 10).until(
+                                EC.visibility_of_element_located((By.XPATH, os.getenv("TOOLTIP_XPATH")))
+                            )
+                            self.highlight(tooltip_text)
+                            timestamp = tooltip_text.text
+                            print("timestamp:", timestamp)
+                        except Exception as e:
+                            timestamp = "Unknown"
+
+                        message_identifier = (message_text, sender, timestamp)
+                        if message_identifier in seen_messages:
+                            continue
+                        seen_messages.add(message_identifier)
+                        
+                        messages_data.append({
+                            'sender': sender,
+                            'text': message_text,
+                            'timestamp': timestamp
+                        })
+                        
+                    except Exception as e:
+                        print(f"Error processing message: {str(e)}")
+                        continue
+                        
+                print(f"Successfully retrieved {len(messages_data)} unique messages")
+                # break  # Exit the loop if successful
+
+            except TimeoutException:
+                print("Failed to load messages - timeout")
+                
+            except Exception as e:
+                print(f"An error occurred while getting messages: {str(e)}")
+
+
+            
 
 # ... existing code ...
 
-if __name__ == "__main__":
-    username = "01730805675"
-    password = "Test@1234"
+# if __name__ == "__main__":
+#     username = "01730805675"
+#     password = "Test@1234"
 
-    bot = MessengerBotLogin(username, password)
-    bot.run()
+#     bot = MessengerBotLogin(username, password)
+#     bot.run()

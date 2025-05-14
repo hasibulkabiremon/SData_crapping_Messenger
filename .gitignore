@@ -1,0 +1,21 @@
+# Ignore post_data folder
+
+# Ignore all .pkl files
+*.pkl
+
+# Ignore messenger folder
+messenger/
+
+# Ignore Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ignore virtual environment
+venv/
+env/
+.env
+
+# Ignore IDE specific files
+.vscode/
+.idea/ 
