@@ -10,10 +10,22 @@ password = os.getenv("PASSWORD")
 bot = MessengerBotLogin(username, password)
 bot.run()
 
-messages_data = []
-bot.get_messages(messages_data)
+# Create source.json with URLs
 
-# Get last 5 messages
-# Write the last five messages to a JSON file
-with open('post_data/messages.json', 'w',encoding='utf-8') as json_file:
-    json.dump(messages_data, json_file, indent=4,ensure_ascii=False)
+# Load URLs from source.json
+with open('source.json', 'r', encoding='utf-8') as source_file:
+    urls = json.load(source_file)
+
+
+# Iterate over each URL and retrieve messages
+for url in urls:
+    bot.driver.get(url)  # Navigate to the URL
+    messages_data = []
+    bot.get_messages(messages_data)
+    # Convert the URL to a valid filename by replacing special characters
+    url_filename = url.replace("https://", "").replace("/", "_").replace(":", "_") + ".json"
+    
+    # Write the messages data to a JSON file named after the URL
+    with open(f'post_data/{url_filename}', 'w', encoding='utf-8') as url_json_file:
+        json.dump(messages_data, url_json_file, indent=4, ensure_ascii=False)
+    
