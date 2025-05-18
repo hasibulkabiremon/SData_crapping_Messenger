@@ -10,6 +10,8 @@ import pickle
 import os
 from dotenv import load_dotenv
 
+from timestamp_converter import standardize_timestamp
+
 load_dotenv()
 class MessengerBotLogin:
     def __init__(self, username, password, cookies_path="messenger_cookies.pkl"):
@@ -119,8 +121,10 @@ class MessengerBotLogin:
                 self.driver.execute_script("arguments[0].scrollIntoView(true);", message_elements[0])
             try:
                 # Wait for messages to load
-                message_elements = self.driver.find_elements(By.XPATH, os.getenv("MESSAGE_CONTAINER_XPATH"))
-                print(f"Found {len(message_elements)} message elements")
+                new_message_elements = self.driver.find_elements(By.XPATH, os.getenv("MESSAGE_CONTAINER_XPATH"))
+                message_elements = [element for element in new_message_elements if element not in seen_messages]
+                seen_messages.update(message_elements)
+                print(f"Found {len(message_elements)} new message elements")
                 
                 # Create a set to track unique messages
                 
@@ -134,7 +138,6 @@ class MessengerBotLogin:
                         # Get message text
                         try:
                             message_text_element = element.find_element(By.XPATH, os.getenv("MESSAGE_XPATH"))
-                            
                             message_text = message_text_element.text
                             try:
                                 self.highlight(message_text_element)  # Ensure 'highlight' is called as a method of the class
@@ -145,18 +148,24 @@ class MessengerBotLogin:
                             # self.driver.execute_script("arguments[0].click();", message_text_element)
                             # input("message_text_element:", message_text)
                         except:
-                            try:
-                                message_text = element.find_element(By.XPATH, os.getenv("MESSAGE_XPATH2"))
-                                self.highlight(message_text)
-                                message_text = message_text.text
-                            except: 
-                                message_text = "Not found"
+                            message_text = "Not found"
                                 # continue
                         finally:
                             print("message_text:", message_text)
                         
                         # Skip if we've seen this message before
                         
+                        try:
+                            media_element = element.find_element(By.XPATH, os.getenv("IMAGE_PATH"))
+                            self.highlight(media_element)
+                            media = media_element.get_attribute("src")
+                            if message_text == "Not found":
+                                try:
+                                    message_text = media_element.get_attribute("alt")
+                                except:
+                                    pass
+                        except: 
+                            media = "Not found"
                         
                         # Get sender name
                         try:
@@ -182,19 +191,21 @@ class MessengerBotLogin:
                                 EC.visibility_of_element_located((By.XPATH, os.getenv("TOOLTIP_XPATH")))
                             )
                             self.highlight(tooltip_text)
-                            timestamp = tooltip_text.text
+                            timestamp = standardize_timestamp(tooltip_text.text)
                             print("timestamp:", timestamp)
                         except Exception as e:
                             timestamp = "Unknown"
 
-                        message_identifier = (message_text, sender, timestamp)
-                        if message_identifier in seen_messages:
-                            continue
-                        seen_messages.add(message_identifier)
+                        # message_identifier = (message_text, sender, timestamp)
+                        # if message_identifier in seen_messages:
+                        #     print("Message already seen:", message_identifier)
+                        #     continue
+                        # seen_messages.add(message_identifier)
                         
                         messages_data.append({
                             'sender': sender,
                             'text': message_text,
+                            'media': media,
                             'timestamp': timestamp
                         })
                         
