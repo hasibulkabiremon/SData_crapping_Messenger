@@ -165,14 +165,19 @@ class MessengerBotLogin:
                                 pass
                             
                         except:
-                            message_text_element = element.find_element(By.XPATH, os.getenv("MESSAGE_XPATH2"))
-                            message_text = message_text_element.text
                             try:
-                                self.highlight(message_text_element)  # Ensure 'highlight' is called as a method of the class
-                            except Exception as e:
-                                print(f"Error highlighting message text element: {e}")
+                                message_text_element = element.find_element(By.XPATH, os.getenv("MESSAGE_XPATH2"))
+                                message_text = message_text_element.text
+                                try:
+                                    self.highlight(message_text_element)  # Ensure 'highlight' is called as a method of the class
+                                except Exception as e:
+                                    print(f"Error highlighting message text element: {e}")
+                                    message_text = "Not found"
+                                    pass
+                                sender = "You"
+                            except:
                                 message_text = "Not found"
-                                pass
+                                sender = "Unknown"
 
                             
                                 # continue
@@ -185,10 +190,11 @@ class MessengerBotLogin:
                             user_profile_pic_element = element.find_element(By.XPATH, os.getenv("USER_PROFILE_PIC_XPATH"))
                             self.highlight(user_profile_pic_element)
                             user_profile_pic = user_profile_pic_element.get_attribute("src")
-                            try:    
-                                sender = user_profile_pic_element.get_attribute("alt")
-                            except:
-                                sender = "Unknown"
+                            if sender == "Unknown":
+                                try:    
+                                    sender = user_profile_pic_element.get_attribute("alt")
+                                except:
+                                    sender = "Unknown"
                         except:
                             user_profile_pic = "Not found"
                         
