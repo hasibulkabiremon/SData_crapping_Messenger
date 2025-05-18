@@ -62,20 +62,24 @@ class MessengerBotLogin:
 
     def run(self):
         try:
-            self.driver.get("https://www.facebook.com/messages/t/24641822542100020")
-            time.sleep(5)
-
-            self.load_cookies()
-            self.driver.refresh()
-            time.sleep(5)
+            self.driver.get("https://www.facebook.com/")
+            # time.sleep(5)
+            
+            try:
+                self.load_cookies()
+                self.driver.refresh()
+                # time.sleep(5)
+            except:
+                pass
 
             if not self.is_logged_in():
-                print("Logging in manually...")
                 self.login_manually()
                 self.save_cookies()
 
         except Exception as e:
+            import traceback
             print(f"An error occurred: {e}")
+            traceback.print_exc()
 
         finally:
             None
@@ -83,7 +87,9 @@ class MessengerBotLogin:
 
     def is_logged_in(self):
         try:
+            
             self.driver.find_element(By.XPATH, '//input[@placeholder="Search Facebook"]')
+            
             return True
         except Exception:
             return False
@@ -114,7 +120,20 @@ class MessengerBotLogin:
         print(message_container_xpath)
         seen_messages = set()
         for attempt in range(10):
-            
+            end_time = time.time() + 1 # 10 seconds from now
+            while time.time() < end_time:
+                found = False
+                try:
+                    loading_element = self.driver.find_element(By.XPATH, os.getenv("LOADING_XPATH"))
+                    loading_element.click()
+                    end_time = time.time() + 1 # 2 additional seconds
+                    found = True
+                    print("->->->->->->->->->->Loading found and clicked->->->->->->->->->->")
+                except:
+                    if found:
+                        break
+
+
             print("Attempt:", attempt)
             if "message_elements" in locals() and len(message_elements) > 0:
                 # input("message_elements")
@@ -144,21 +163,40 @@ class MessengerBotLogin:
                             except Exception as e:
                                 print(f"Error highlighting message text element: {e}")
                                 pass
-                            # Click on the message text element to navigate with the mouse cursor
-                            # self.driver.execute_script("arguments[0].click();", message_text_element)
-                            # input("message_text_element:", message_text)
+                            
                         except:
-                            message_text = "Not found"
+                            message_text_element = element.find_element(By.XPATH, os.getenv("MESSAGE_XPATH2"))
+                            message_text = message_text_element.text
+                            try:
+                                self.highlight(message_text_element)  # Ensure 'highlight' is called as a method of the class
+                            except Exception as e:
+                                print(f"Error highlighting message text element: {e}")
+                                message_text = "Not found"
+                                pass
+
+                            
                                 # continue
                         finally:
                             print("message_text:", message_text)
                         
                         # Skip if we've seen this message before
+
+                        try:
+                            user_profile_pic_element = element.find_element(By.XPATH, os.getenv("USER_PROFILE_PIC_XPATH"))
+                            self.highlight(user_profile_pic_element)
+                            user_profile_pic = user_profile_pic_element.get_attribute("src")
+                            try:    
+                                sender = user_profile_pic_element.get_attribute("alt")
+                            except:
+                                sender = "Unknown"
+                        except:
+                            user_profile_pic = "Not found"
                         
                         try:
                             media_element = element.find_element(By.XPATH, os.getenv("IMAGE_PATH"))
                             self.highlight(media_element)
                             media = media_element.get_attribute("src")
+                            
                             if message_text == "Not found":
                                 try:
                                     message_text = media_element.get_attribute("alt")
@@ -168,21 +206,22 @@ class MessengerBotLogin:
                             media = "Not found"
                         
                         # Get sender name
-                        try:
-                            sender = element.find_element(By.XPATH, os.getenv("SENDER_XPATH"))
-                            self.highlight(sender)
-                            sender = sender.text
-                        except Exception as e:
-                            print("User Exceptions SENDER_XPATH:")
+                        if sender == "Unknown":
                             try:
-                                sender = element.find_element(By.XPATH, os.getenv("SENDER_XPATH2"))
+                                sender = element.find_element(By.XPATH, os.getenv("SENDER_XPATH"))
                                 self.highlight(sender)
                                 sender = sender.text
-                            except Exception as e2:
-                                print("User Exceptions SENDER_XPATH2:")
-                                sender = "Unknown"
-                        finally:
-                            print("sender:", sender)
+                            except Exception as e:
+                                print("User Exceptions SENDER_XPATH:")
+                                try:
+                                    sender = element.find_element(By.XPATH, os.getenv("SENDER_XPATH2"))
+                                    self.highlight(sender)
+                                    sender = sender.text
+                                except Exception as e2:
+                                    print("User Exceptions SENDER_XPATH2:")
+                                    sender = "Unknown"
+                            finally:
+                                print("sender:", sender)
                         
                         # Get timestamp
                         try:
@@ -203,7 +242,8 @@ class MessengerBotLogin:
                         # seen_messages.add(message_identifier)
                         
                         messages_data.append({
-                            'sender': sender,
+                            'user_name': sender,
+                            'user_profile_pic': user_profile_pic,
                             'text': message_text,
                             'media': media,
                             'timestamp': timestamp
