@@ -62,20 +62,24 @@ class MessengerBotLogin:
 
     def run(self):
         try:
-            self.driver.get("https://www.facebook.com/messages/t/24641822542100020")
-            time.sleep(5)
-
-            self.load_cookies()
-            self.driver.refresh()
-            time.sleep(5)
+            self.driver.get("https://www.facebook.com/")
+            # time.sleep(5)
+            
+            try:
+                self.load_cookies()
+                self.driver.refresh()
+                # time.sleep(5)
+            except:
+                pass
 
             if not self.is_logged_in():
-                print("Logging in manually...")
                 self.login_manually()
                 self.save_cookies()
 
         except Exception as e:
+            import traceback
             print(f"An error occurred: {e}")
+            traceback.print_exc()
 
         finally:
             None
@@ -83,13 +87,15 @@ class MessengerBotLogin:
 
     def is_logged_in(self):
         try:
+            
             self.driver.find_element(By.XPATH, '//input[@placeholder="Search Facebook"]')
+            
             return True
         except Exception:
             return False
     # ... existing code ...
 
-    def highlight(self, element, duration=1, color="red", border="2px"):
+    def highlight(self, element, duration=.1, color="red", border="2px"):
         """Highlights (blinks) a Selenium WebDriver element"""
         driver = self.driver  # Use the class's driver instance
         original_style = element.get_attribute('style')
@@ -109,12 +115,14 @@ class MessengerBotLogin:
         Returns:
             list: List of dictionaries containing message data
         """
-
+        
         message_container_xpath = os.getenv("MESSAGE_CONTAINER_XPATH")
         print(message_container_xpath)
         seen_messages = set()
-        for attempt in range(10):
+        for attempt in range(5):
             
+
+
             print("Attempt:", attempt)
             if "message_elements" in locals() and len(message_elements) > 0:
                 # input("message_elements")
@@ -126,92 +134,88 @@ class MessengerBotLogin:
                 seen_messages.update(message_elements)
                 print(f"Found {len(message_elements)} new message elements")
                 
+                # message_elements = self.driver.find_elements(By.XPATH, os.getenv("MESSAGE_CONTAINER_XPATH"))
+
                 # Create a set to track unique messages
                 
                 
                 # Process the most recent messages
                 self.driver.implicitly_wait(0)
+                # Iterate through message elements in reverse order
                 for element in reversed(message_elements):
+                    # Focus on the current element
+                    self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", element)
+                    time.sleep(0.5)
                     
-                    print("element:", message_elements.index(element))
+                    message_text = ""
+                    media = []
+                    has_content = False
+                    
+                    # Try to get message text
                     try:
-                        # Get message text
-                        try:
-                            message_text_element = element.find_element(By.XPATH, os.getenv("MESSAGE_XPATH"))
-                            message_text = message_text_element.text
-                            try:
-                                self.highlight(message_text_element)  # Ensure 'highlight' is called as a method of the class
-                            except Exception as e:
-                                print(f"Error highlighting message text element: {e}")
-                                pass
-                            # Click on the message text element to navigate with the mouse cursor
-                            # self.driver.execute_script("arguments[0].click();", message_text_element)
-                            # input("message_text_element:", message_text)
-                        except:
-                            message_text = "Not found"
-                                # continue
-                        finally:
-                            print("message_text:", message_text)
-                        
-                        # Skip if we've seen this message before
-                        
-                        try:
-                            media_element = element.find_element(By.XPATH, os.getenv("IMAGE_PATH"))
+                        message_text_element = element.find_element(By.XPATH, os.getenv("MESSAGE_XPATH"))
+                        message_text = message_text_element.text
+                        self.highlight(message_text_element)
+                        has_content = True
+                    except:
+                        pass
+                    
+                    # Try to get media
+                    try:
+                        media_elements = element.find_elements(By.XPATH, os.getenv("IMAGE_PATH"))
+                        for media_element in media_elements:
                             self.highlight(media_element)
-                            media = media_element.get_attribute("src")
-                            if message_text == "Not found":
-                                try:
-                                    message_text = media_element.get_attribute("alt")
-                                except:
-                                    pass
-                        except: 
-                            media = "Not found"
-                        
-                        # Get sender name
+                            media.append(media_element.get_attribute("src"))
+                        if media:
+                            has_content = True
+                    except:
+                        pass
+                    
+                    # Only proceed if we found either text or media
+                    if has_content:
                         try:
-                            sender = element.find_element(By.XPATH, os.getenv("SENDER_XPATH"))
-                            self.highlight(sender)
-                            sender = sender.text
-                        except Exception as e:
-                            print("User Exceptions SENDER_XPATH:")
+                            # Try to get user info
                             try:
-                                sender = element.find_element(By.XPATH, os.getenv("SENDER_XPATH2"))
-                                self.highlight(sender)
-                                sender = sender.text
-                            except Exception as e2:
-                                print("User Exceptions SENDER_XPATH2:")
-                                sender = "Unknown"
-                        finally:
-                            print("sender:", sender)
-                        
-                        # Get timestamp
-                        try:
-                            ActionChains(self.driver).move_to_element(message_text_element).perform()
-                            tooltip_text = WebDriverWait(self.driver, 10).until(
-                                EC.visibility_of_element_located((By.XPATH, os.getenv("TOOLTIP_XPATH")))
-                            )
-                            self.highlight(tooltip_text)
-                            timestamp = standardize_timestamp(tooltip_text.text)
-                            print("timestamp:", timestamp)
+                                user_profile_pic_element = element.find_element(By.XPATH, os.getenv("USER_PROFILE_PIC_XPATH"))
+                                self.highlight(user_profile_pic_element)
+                                user_profile_pic = user_profile_pic_element.get_attribute("src")
+                                sender = user_profile_pic_element.get_attribute("alt")
+                                
+                                # Get timestamp
+                                time_path = element.find_element(By.XPATH, os.getenv("TIME_XPATH"))
+                                actions = ActionChains(self.driver)
+                                actions.move_to_element_with_offset(time_path, 0, 0).perform()
+                                tooltip_text = WebDriverWait(self.driver, 5).until(
+                                    EC.presence_of_element_located((By.XPATH, os.getenv("TOOLTIP_XPATH")))
+                                )
+                                self.highlight(tooltip_text)
+                                timestamp = standardize_timestamp(tooltip_text.text)
+                                
+                                # Check for duplicates
+                                message_identifier = (message_text, sender, tuple(media))
+                                if message_identifier not in seen_messages:
+                                    seen_messages.add(message_identifier)
+                                    messages_data.append({
+                                        'user_name': sender,
+                                        'user_profile_pic': user_profile_pic,
+                                        'text': message_text,
+                                        'media': media,
+                                        'timestamp': timestamp
+                                    })
+                                    print(f"Added message {len(messages_data)}")
+                            except:
+                                # If no sender found, append to last message
+                                if messages_data:
+                                    last_message = messages_data[-1]
+                                    if message_text:
+                                        last_message['text'] += f"\n{message_text}"
+                                    if media:
+                                        last_message['media'].extend(media)
+                                    print("Appended to last message")
+                                
                         except Exception as e:
-                            timestamp = "Unknown"
-
-                        # message_identifier = (message_text, sender, timestamp)
-                        # if message_identifier in seen_messages:
-                        #     print("Message already seen:", message_identifier)
-                        #     continue
-                        # seen_messages.add(message_identifier)
-                        
-                        messages_data.append({
-                            'sender': sender,
-                            'text': message_text,
-                            'media': media,
-                            'timestamp': timestamp
-                        })
-                        
-                    except Exception as e:
-                        print(f"Error processing message: {str(e)}")
-                        continue
+                            print(f"Error processing message details: {str(e)}")
+                            continue
                         
                 print(f"Successfully retrieved {len(messages_data)} unique messages")
                 # break  # Exit the loop if successful
@@ -223,7 +227,27 @@ class MessengerBotLogin:
                 print(f"An error occurred while getting messages: {str(e)}")
 
 
-            
+    def get_chat_info(self, chat_info):
+        try:
+            chat_info_xpath_title = os.getenv("CHAT_INFO_TITLE_XPATH")
+            chat_info_element_title = self.driver.find_element(By.XPATH, chat_info_xpath_title)
+            self.highlight(chat_info_element_title)
+            chat_info["Title"] = chat_info_element_title.text
+            print(chat_info)
+        except Exception as e:
+            print(f"Error getting chat title: {str(e)}")
+            chat_info["Title"] = ""
+
+        try:
+            chat_info_xpath_subtitle = os.getenv("CHAT_INFO_SUBTITLE_XPATH")
+            chat_info_element_subtitle = self.driver.find_element(By.XPATH, chat_info_xpath_subtitle)
+            self.highlight(chat_info_element_subtitle)
+            chat_info["Sub_Title"] = chat_info_element_subtitle.text
+        except Exception as e:
+            print(f"Error getting chat subtitle: {str(e)}")
+            chat_info["Sub_Title"] = ""
+        
+        
 
 # ... existing code ...
 
