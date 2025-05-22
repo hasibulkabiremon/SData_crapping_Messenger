@@ -1,3 +1,4 @@
+import time
 from login import MessengerBotLogin
 import os
 from dotenv import load_dotenv
@@ -20,8 +21,15 @@ with open('source.json', 'r', encoding='utf-8') as source_file:
 # Iterate over each URL and retrieve messages
 for url in urls:
     bot.driver.get(url)  # Navigate to the URL
+    time.sleep(10)
     messages_data = []
     bot.get_messages(messages_data)
+
+    # Sort the messages_data list by the 'timestamp' key
+    from datetime import datetime
+
+    # Convert the timestamp string to a datetime object for accurate sorting
+    messages_data.sort(key=lambda message: datetime.strptime(message['timestamp'], "%Y-%m-%d %H:%M:%S"))
     # Convert the URL to a valid filename by replacing special characters
     url_filename = url.replace("https://", "").replace("/", "_").replace(":", "_") + ".json"
     
