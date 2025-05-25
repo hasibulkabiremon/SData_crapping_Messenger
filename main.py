@@ -27,9 +27,8 @@ for url in urls:
     bot.get_chat_info(chat_info)
     bot.get_messages(messages_data)
     chat_info["messages"] = messages_data
-    url_filename = url.replace("https://", "").replace("/", "_").replace(":", "_") + ".json"
     
     # Write the messages data to a JSON file named after the URL
-    with open(f'post_data/{url_filename}', 'w', encoding='utf-8') as url_json_file:
+    with open(f'post_data/{chat_info["Title"]}.json', 'w', encoding='utf-8') as url_json_file:
         json.dump(chat_info, url_json_file, indent=4, ensure_ascii=False)
     

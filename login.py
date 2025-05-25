@@ -143,10 +143,16 @@ class MessengerBotLogin:
                 self.driver.implicitly_wait(0)
                 # Iterate through message elements in reverse order
                 for element in reversed(message_elements):
-                    # Focus on the current element
-                    self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", element)
-                    time.sleep(0.5)
-                    
+                    # Focus on the current element time
+                    try:
+                        time_path = element.find_element(By.XPATH, os.getenv("TIME_XPATH"))
+                        self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", time_path)
+                        time.sleep(0.1)
+                        # print("time_path")
+                    except:
+                        self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", element)
+                        time.sleep(0.1)
+                        # print("element")
                     message_text = ""
                     media = []
                     has_content = False
@@ -174,22 +180,83 @@ class MessengerBotLogin:
                     # Only proceed if we found either text or media
                     if has_content:
                         try:
+                            
                             # Try to get user info
                             try:
+
+                                try:
+                                    reaction_type = element.find_elements(By.XPATH, os.getenv("REACTION_TYPE_XPATH"))
+                                    reaction_count = element.find_elements(By.XPATH, os.getenv("REACTION_COUNT_XPATH"))
+                                    reactions = {}
+                                    for r_type, r_count in zip(reaction_type, reaction_count):
+                                        self.highlight(r_type,color="purple")
+                                        self.highlight(r_count,color="purple")
+                                        reaction_emoji = r_type.get_attribute('alt')
+                                        reaction_count = r_count.text
+                                        reactions[reaction_emoji] = reaction_count
+                                except:
+                                    reactions = {}
+
+
                                 user_profile_pic_element = element.find_element(By.XPATH, os.getenv("USER_PROFILE_PIC_XPATH"))
                                 self.highlight(user_profile_pic_element)
                                 user_profile_pic = user_profile_pic_element.get_attribute("src")
                                 sender = user_profile_pic_element.get_attribute("alt")
                                 
                                 # Get timestamp
-                                time_path = element.find_element(By.XPATH, os.getenv("TIME_XPATH"))
                                 actions = ActionChains(self.driver)
-                                actions.move_to_element_with_offset(time_path, 0, 0).perform()
-                                tooltip_text = WebDriverWait(self.driver, 5).until(
-                                    EC.presence_of_element_located((By.XPATH, os.getenv("TOOLTIP_XPATH")))
-                                )
-                                self.highlight(tooltip_text)
-                                timestamp = standardize_timestamp(tooltip_text.text)
+                                try:
+                                    # First try to find the time element directly
+                                    time_path = element.find_element(By.XPATH, os.getenv("TIME_XPATH"))
+                                    actions.move_to_element(time_path).perform()
+                                    self.highlight(time_path, color="green")
+                                    tooltip_text = WebDriverWait(self.driver, 10).until(
+                                        EC.presence_of_element_located((By.XPATH, os.getenv("TOOLTIP_XPATH")))
+                                    )
+                                except:
+                                    try:
+                                        # If time element not found, try message text
+                                        if message_text_element:
+                                            print("Using message text for timestamp")
+                                            actions.move_to_element(message_text_element).perform()
+                                            self.highlight(message_text_element, color="black")
+                                            tooltip_text = WebDriverWait(self.driver, 10).until(
+                                        EC.presence_of_element_located((By.XPATH, os.getenv("TOOLTIP_XPATH")))
+                                    )
+                                        # If no message text, try media
+                                        elif media_elements and len(media_elements) > 0:
+                                            print("Using media for timestamp")
+                                            actions.move_to_element(media_elements[0]).perform()
+                                            self.highlight(media_elements[0], color="yellow")
+                                            tooltip_text = WebDriverWait(self.driver, 10).until(
+                                        EC.presence_of_element_located((By.XPATH, os.getenv("TOOLTIP_XPATH")))
+                                    )
+                                        # Last resort, use the main element
+                                        else:
+                                            print("Using main element for timestamp")
+                                            actions.move_to_element(element).perform()
+                                            self.highlight(element, color="blue")
+                                            tooltip_text = WebDriverWait(self.driver, 10).until(
+                                        EC.presence_of_element_located((By.XPATH, os.getenv("TOOLTIP_XPATH")))
+                                    )
+                                    except Exception as e:
+                                        print(f"Error moving to element: {str(e)}")
+                                        continue
+
+                                try:
+                                    # Wait for tooltip with increased timeout
+                                    tooltip_text = WebDriverWait(self.driver, 10).until(
+                                        EC.presence_of_element_located((By.XPATH, os.getenv("TOOLTIP_XPATH")))
+                                    )
+                                    self.highlight(tooltip_text)
+                                    timestamp = standardize_timestamp(tooltip_text.text)
+                                    print(f"Found timestamp: {timestamp}")
+                                except TimeoutException:
+                                    print("Timeout waiting for tooltip")
+                                    timestamp = None
+                                except Exception as e:
+                                    print(f"Error getting timestamp: {str(e)}")
+                                    timestamp = None
                                 
                                 # Check for duplicates
                                 message_identifier = (message_text, sender, tuple(media))
@@ -200,7 +267,8 @@ class MessengerBotLogin:
                                         'user_profile_pic': user_profile_pic,
                                         'text': message_text,
                                         'media': media,
-                                        'timestamp': timestamp
+                                        'timestamp': timestamp,
+                                        'reactions': reactions
                                     })
                                     print(f"Added message {len(messages_data)}")
                             except:
