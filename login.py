@@ -126,7 +126,10 @@ class MessengerBotLogin:
             print("Attempt:", attempt)
             if "message_elements" in locals() and len(message_elements) > 0:
                 # input("message_elements")
-                self.driver.execute_script("arguments[0].scrollIntoView(true);", message_elements[0])
+                try:
+                    self.driver.execute_script("arguments[0].scrollIntoView(true);", message_elements[0])
+                except:
+                    pass
             try:
                 # Wait for messages to load
                 new_message_elements = self.driver.find_elements(By.XPATH, os.getenv("MESSAGE_CONTAINER_XPATH"))
@@ -149,10 +152,14 @@ class MessengerBotLogin:
                         self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", time_path)
                         time.sleep(0.1)
                         # print("time_path")
+                        
                     except:
                         self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", element)
                         time.sleep(0.1)
                         # print("element")
+                        
+                        
+                        
                     message_text = ""
                     media = []
                     has_content = False
@@ -165,17 +172,57 @@ class MessengerBotLogin:
                         has_content = True
                     except:
                         pass
-                    
+
+
                     # Try to get media
                     try:
-                        media_elements = element.find_elements(By.XPATH, os.getenv("IMAGE_PATH"))
-                        for media_element in media_elements:
-                            self.highlight(media_element)
-                            media.append(media_element.get_attribute("src"))
-                        if media:
-                            has_content = True
+                                media_elements = element.find_elements(By.XPATH, os.getenv("IMAGE_PATH"))
+                                for media_element in media_elements:
+                                    self.highlight(media_element)
+                                    media.append(media_element.get_attribute("src"))
+                                if media:
+                                    has_content = True
                     except:
+                                pass
+
+                    # Reactions
+                    if has_content:
                         pass
+                    else:
+                        continue
+
+                    reactions = {}
+                    try:
+                        reaction_elements = element.find_elements(By.XPATH, os.getenv("REACTION_XPATH"))
+                        print(f"Found {len(reaction_elements)} reaction elements")
+                        
+                        for reaction_element in reaction_elements:
+                            try:
+                                # Get reaction type (emoji)
+                                reaction_type = reaction_element.find_element(By.XPATH, os.getenv("REACTION_TYPE_XPATH"))
+                                self.highlight(reaction_type, color="purple")
+                                reaction_emoji = reaction_type.get_attribute('alt')
+                                
+                                # Get reaction count
+                                try:
+                                    reaction_count = reaction_element.find_element(By.XPATH, os.getenv("REACTION_COUNT_XPATH"))
+                                except:
+                                    reaction_count = reaction_element.find_element(By.XPATH, os.getenv("REACTION_COUNT_XPATH2"))
+                                
+                                self.highlight(reaction_count, color="yellow")
+                                count = reaction_count.text
+                                
+                                # Store the reaction with its count
+                                if reaction_emoji:
+                                    reactions[reaction_emoji] = int(count)
+                                    print(f"Added reaction: {reaction_emoji} with count {count}")
+                                
+                            except Exception as e:
+                                print(f"Error processing individual reaction: {e}")
+                                
+                    except Exception as e:
+                        print(f"No reactions found: {e}")
+                        reactions = {}
                     
                     # Only proceed if we found either text or media
                     if has_content:
@@ -183,21 +230,6 @@ class MessengerBotLogin:
                             
                             # Try to get user info
                             try:
-
-                                try:
-                                    reaction_type = element.find_elements(By.XPATH, os.getenv("REACTION_TYPE_XPATH"))
-                                    reaction_count = element.find_elements(By.XPATH, os.getenv("REACTION_COUNT_XPATH"))
-                                    reactions = {}
-                                    for r_type, r_count in zip(reaction_type, reaction_count):
-                                        self.highlight(r_type,color="purple")
-                                        self.highlight(r_count,color="purple")
-                                        reaction_emoji = r_type.get_attribute('alt')
-                                        reaction_count = r_count.text
-                                        reactions[reaction_emoji] = reaction_count
-                                except:
-                                    reactions = {}
-
-
                                 user_profile_pic_element = element.find_element(By.XPATH, os.getenv("USER_PROFILE_PIC_XPATH"))
                                 self.highlight(user_profile_pic_element)
                                 user_profile_pic = user_profile_pic_element.get_attribute("src")
@@ -279,7 +311,20 @@ class MessengerBotLogin:
                                         last_message['text'] += f"\n{message_text}"
                                     if media:
                                         last_message['media'].extend(media)
+                                    if reactions:
+                                        if 'reactions' not in last_message:
+                                            last_message['reactions'] = {}
+                                        for reaction_type, count in reactions.items():
+                                            reaction_type = str(reaction_type)
+                                            count = str(int(str(count)))
+                                            if reaction_type in last_message['reactions']:
+                                                last_message['reactions'][reaction_type] = int(last_message['reactions'][reaction_type]) + int(count)
+                                            else:
+                                                last_message['reactions'][reaction_type] = int(count)
+
                                     print("Appended to last message")
+
+
                                 
                         except Exception as e:
                             print(f"Error processing message details: {str(e)}")

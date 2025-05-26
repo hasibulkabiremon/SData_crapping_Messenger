@@ -3,7 +3,7 @@ from login import MessengerBotLogin
 import os
 from dotenv import load_dotenv
 import json
-load_dotenv()
+load_dotenv('.env')
 
 username = os.getenv("USERNAME")    
 password = os.getenv("PASSWORD")
